@@ -1,0 +1,178 @@
+:root {
+    --bg-color: #111;
+    --neon-cyan: #00f3ff;
+    --neon-magenta: #ff00ff;
+    --neon-lime: #0aff00;
+    --text-color: #fff;
+    --font-main: 'Outfit', sans-serif;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: var(--font-main);
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+}
+
+#game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* UI Layer */
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    /* Let clicks pass through to canvas usually */
+}
+
+.screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(17, 17, 17, 0.85);
+    /* Semi-transparent overlay */
+    pointer-events: auto;
+    /* Re-enable clicks for menus */
+    transition: opacity 0.3s ease;
+}
+
+.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Typography */
+.logo {
+    font-size: 5rem;
+    font-weight: 900;
+    letter-spacing: -2px;
+    margin-bottom: 1rem;
+    text-shadow: 0 0 20px var(--neon-cyan);
+}
+
+.highlight {
+    color: var(--neon-magenta);
+    text-shadow: 0 0 20px var(--neon-magenta);
+}
+
+.subtitle {
+    font-size: 1.2rem;
+    color: #aaa;
+    margin-bottom: 3rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.title {
+    font-size: 4rem;
+    font-weight: 900;
+    margin-bottom: 1rem;
+    color: var(--neon-magenta);
+    text-shadow: 0 0 20px var(--neon-magenta);
+}
+
+/* HUD */
+#hud {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    pointer-events: none;
+}
+
+#hud.hidden {
+    display: none;
+}
+
+/* Buttons */
+.neon-btn {
+    background: transparent;
+    border: 2px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+    padding: 15px 40px;
+    font-size: 1.5rem;
+    font-family: var(--font-main);
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 0 10px var(--neon-cyan), inset 0 0 10px var(--neon-cyan);
+    transition: all 0.2s ease;
+    border-radius: 5px;
+}
+
+.neon-btn:hover {
+    background: var(--neon-cyan);
+    color: #000;
+    box-shadow: 0 0 30px var(--neon-cyan), inset 0 0 20px var(--neon-cyan);
+    transform: scale(1.05);
+}
+
+.neon-btn:active {
+    transform: scale(0.95);
+}
+
+/* Game Over Stats */
+.final-score,
+.high-score {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.high-score {
+    color: var(--neon-lime);
+    margin-bottom: 3rem;
+}
+
+/* Footer */
+#game-footer {
+    position: absolute;
+    bottom: 10px;
+    width: 100%;
+    text-align: center;
+    color: #555;
+    font-size: 0.8rem;
+    font-weight: 400;
+    pointer-events: none;
+    z-index: 100;
+}
+
+/* HUD High Score */
+#hud-high-score {
+    color: var(--neon-lime);
+    font-size: 1rem;
+    margin-top: 5px;
+}
