@@ -61,6 +61,10 @@ export class Game {
         this.isRunning = true;
         this.isPaused = false;
 
+        // Remove focus from buttons so Spacebar doesn't trigger them again
+        if (this.startBtn) this.startBtn.blur();
+        if (this.restartBtn) this.restartBtn.blur();
+
         // Hide Menus
         const menu = document.getElementById('main-menu');
         if (menu) {
@@ -106,6 +110,7 @@ export class Game {
         if (!this.isRunning || this.isPaused) return;
 
         if (e.type === 'keydown' && e.code === 'Space') {
+            e.preventDefault();
             this.player.jump();
         } else if (e.type === 'mousedown' || e.type === 'touchstart') {
             e.preventDefault();
