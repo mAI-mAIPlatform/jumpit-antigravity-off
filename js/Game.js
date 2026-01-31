@@ -1,5 +1,5 @@
 import { Player } from './Player.js';
-import { Spike, DebugBlock } from './Obstacle.js';
+import { Spike, Platform, PowerUp } from './Obstacle.js';
 import { Particle } from './Particle.js';
 import { AudioManager } from './AudioManager.js';
 
@@ -19,22 +19,13 @@ export class Game {
         this.resumeBtn = document.getElementById('resume-btn');
 
         this.bindEvents();
-        this.init();
-    }
 
-    init() {
-        console.log('Game Initialized');
-
-        this.player = new Player(this);
+        // Initial setup
+        this.audio = new AudioManager();
+        this.platforms = [];
         this.obstacles = [];
         this.particles = [];
-        this.audio = new AudioManager();
-        this.gameSpeed = 5;
-        this.score = 0;
-        this.spawnTimer = 0;
-        this.spawnInterval = 1500;
-
-        requestAnimationFrame(this.gameLoop.bind(this));
+        this.player = new Player(this);
     }
 
     bindEvents() {
@@ -45,55 +36,64 @@ export class Game {
         window.addEventListener('keydown', (e) => this.handleInput(e));
         this.canvas.addEventListener('mousedown', (e) => this.handleInput(e));
         this.canvas.addEventListener('touchstart', (e) => this.handleInput(e), { passive: false });
+
+        window.addEventListener('resize', () => this.resize(window.innerWidth, window.innerHeight));
+    }
+
+    init() {
+        this.resize(window.innerWidth, window.innerHeight);
     }
 
     start() {
-        // Resume Audio Context if suspended (Browser Policy)
-        if (this.audio && this.audio.ctx && this.audio.ctx.state === 'suspended') {
-            try {
-                this.audio.ctx.resume();
-            } catch (e) {
-                console.warn("Could not resume audio context:", e);
-            }
+        if (this.audio) {
+            this.audio.startMusic();
         }
 
-        console.log('Game Started');
         this.isRunning = true;
         this.isPaused = false;
 
-        // Remove focus from buttons so Spacebar doesn't trigger them again
         if (this.startBtn) this.startBtn.blur();
         if (this.restartBtn) this.restartBtn.blur();
 
-        // Hide Menus
-        const menu = document.getElementById('main-menu');
-        if (menu) {
-            menu.classList.add('hidden');
-            menu.classList.remove('active');
-        }
-
-        const pauseScreen = document.getElementById('pause-screen');
-        if (pauseScreen) pauseScreen.classList.add('hidden');
-
-        const gameOverScreen = document.getElementById('game-over');
-        if (gameOverScreen) {
-            gameOverScreen.classList.add('hidden');
-            gameOverScreen.classList.remove('active');
-        }
-
-        const hud = document.getElementById('hud');
-        if (hud) hud.classList.remove('hidden');
+        this.toggleMenus(false);
 
         // Reset entities
-        this.player = new Player(this);
+        this.platforms = [];
         this.obstacles = [];
         this.particles = [];
         this.score = 0;
+        this.baseGameSpeed = 5;
         this.gameSpeed = 5;
         this.spawnTimer = 0;
-        this.lastSpawnTime = 0; // for spacing check
+        this.slowMoTimer = 0;
+
+        this.player = new Player(this);
+        // Default maxJumps is 1 (Player handles default)
+
+        // Initial Platform (Ground)
+        this.createPlatform(0, this.height - 50, this.width, 50);
+
         this.updateScore(0);
         this.updateHighScore();
+
+        this.lastTime = performance.now();
+        requestAnimationFrame(this.gameLoop.bind(this));
+    }
+
+    toggleMenus(showMenu) {
+        const menu = document.getElementById('main-menu');
+        const hud = document.getElementById('hud');
+        const gameOverScreen = document.getElementById('game-over');
+        const pauseScreen = document.getElementById('pause-screen');
+
+        if (!showMenu) {
+            if (menu) { menu.classList.add('hidden'); menu.classList.remove('active'); }
+            if (gameOverScreen) { gameOverScreen.classList.add('hidden'); gameOverScreen.classList.remove('active'); }
+            if (pauseScreen) pauseScreen.classList.add('hidden');
+            if (hud) hud.classList.remove('hidden');
+        } else {
+             // Logic for showing menus typically handled by Game Over or Pause
+        }
     }
 
     restart() {
@@ -101,7 +101,6 @@ export class Game {
     }
 
     handleInput(e) {
-        // Pause Toggle
         if (e.type === 'keydown' && (e.code === 'Escape' || e.code === 'KeyP')) {
             this.togglePause();
             return;
@@ -109,10 +108,9 @@ export class Game {
 
         if (!this.isRunning || this.isPaused) return;
 
-        if (e.type === 'keydown' && e.code === 'Space') {
-            e.preventDefault();
-            this.player.jump();
-        } else if (e.type === 'mousedown' || e.type === 'touchstart') {
+        if ((e.type === 'keydown' && e.code === 'Space') ||
+            e.type === 'mousedown' ||
+            e.type === 'touchstart') {
             e.preventDefault();
             this.player.jump();
         }
@@ -121,74 +119,133 @@ export class Game {
     togglePause() {
         if (!this.isRunning) return;
         this.isPaused = !this.isPaused;
-
         const pauseScreen = document.getElementById('pause-screen');
         if (this.isPaused) {
             pauseScreen.classList.remove('hidden');
         } else {
             pauseScreen.classList.add('hidden');
-            this.lastTime = performance.now(); // Avoid huge delta time jump
+            this.lastTime = performance.now();
         }
     }
 
     resize(width, height) {
         this.width = width;
         this.height = height;
+        this.canvas.width = width;
+        this.canvas.height = height;
         if (this.player) this.player.resize(height);
     }
 
     gameLoop(timestamp) {
+        if (!this.isRunning) return;
+
         const deltaTime = timestamp - this.lastTime;
         this.lastTime = timestamp;
 
-        if (this.isRunning && !this.isPaused) {
+        if (!this.isPaused) {
             this.update(deltaTime);
         }
 
         this.draw();
-
         requestAnimationFrame(this.gameLoop.bind(this));
     }
 
     update(deltaTime) {
-        this.player.update(deltaTime);
-
-        // Obstacles Spawning
-        this.spawnTimer += deltaTime;
-        // Basic interval check AND minimum separation check (approx 500ms at current speed)
-        if (this.spawnTimer > this.spawnInterval) {
-            this.spawnObstacle();
-            this.spawnTimer = 0;
-            if (this.spawnInterval > 500) this.spawnInterval -= 5;
+        // Handle SlowMo
+        let speedModifier = 1;
+        if (this.slowMoTimer > 0) {
+            this.slowMoTimer -= deltaTime;
+            speedModifier = 0.5;
         }
 
-        // Update Obstacles
-        this.obstacles.forEach(obstacle => {
-            obstacle.update(this.gameSpeed);
-        });
-        this.obstacles = this.obstacles.filter(obs => !obs.markedForDeletion);
+        // Apply Speed
+        this.gameSpeed = this.baseGameSpeed * speedModifier;
 
-        // Update Particles
+        // Pass effective deltaTime to player?
+        // No, player physics (gravity) is frame-based currently, so we pass raw deltaTime for timers
+        this.player.update(deltaTime);
+
+        // Manage World Generation
+        this.managePlatforms();
+
+        // Update Entities
+        this.platforms.forEach(p => p.update(this.gameSpeed));
+        this.obstacles.forEach(o => o.update(this.gameSpeed));
         this.particles.forEach(p => p.update());
+
+        // Cleanup
+        this.platforms = this.platforms.filter(p => !p.markedForDeletion);
+        this.obstacles = this.obstacles.filter(o => !o.markedForDeletion);
         this.particles = this.particles.filter(p => !p.markedForDeletion);
 
-        // Collisions
+        // Check Collisions
         this.checkCollisions();
 
-        // Score
+        // Score & Base Speed Increase
         this.score += 0.05;
         this.updateScore(Math.floor(this.score));
 
-        // Speed scaling
-        if (this.gameSpeed < 15) this.gameSpeed += 0.0005;
+        if (this.baseGameSpeed < 20) this.baseGameSpeed += 0.001;
     }
 
-    spawnObstacle() {
-        const type = Math.random() < 0.6 ? 'spike' : 'box';
-        if (type === 'box') {
-            this.obstacles.push(new DebugBlock(this, this.width));
-        } else {
-            this.obstacles.push(new Spike(this, this.width));
+    managePlatforms() {
+        const lastPlatform = this.platforms[this.platforms.length - 1];
+
+        let spawnX = this.width;
+        if (lastPlatform) {
+            spawnX = lastPlatform.x + lastPlatform.width;
+        }
+
+        if (spawnX < this.width + 100) {
+            // Determine next segment type
+            const gapChance = 0.3; // 30% chance of gap
+            const floatChance = 0.2; // 20% chance of floating platform
+
+            // Random Gap
+            if (Math.random() < gapChance && this.score > 50) {
+                const gapSize = 100 + Math.random() * 100;
+                spawnX += gapSize;
+            }
+
+            // Platform properties
+            const width = 200 + Math.random() * 300;
+            const y = this.height - 50; // Ground level
+
+            if (Math.random() < floatChance && this.score > 100) {
+                 // Floating Platform
+                 const floatY = this.height - 150 - (Math.random() * 100);
+                 this.createPlatform(spawnX, floatY, width, 30);
+            } else {
+                 // Ground Platform
+                 this.createPlatform(spawnX, y, width, 50);
+            }
+        }
+    }
+
+    createPlatform(x, y, width, height) {
+        const platform = new Platform(this, x, y, width, height);
+        this.platforms.push(platform);
+
+        // Spawn Spikes or Powerups
+        const contentRand = Math.random();
+
+        // 10% chance for PowerUp
+        if (contentRand < 0.1) {
+            const typeRand = Math.random();
+            let type = 'shield';
+            if (typeRand < 0.33) type = 'jump';
+            else if (typeRand < 0.66) type = 'slowmo';
+
+            const px = x + 50 + Math.random() * (width - 100);
+            const py = y - 40; // float above
+            this.obstacles.push(new PowerUp(this, px, py, type));
+
+        }
+        // 40% chance for Spike (only if not powerup)
+        else if (contentRand < 0.5 && this.score > 30) {
+            const spikeX = x + 50 + Math.random() * (width - 100);
+            const spike = new Spike(this, spikeX, y - 30);
+            this.obstacles.push(spike);
         }
     }
 
@@ -202,6 +259,7 @@ export class Game {
         const p = this.player;
         const hitboxPadding = 5;
 
+        // Obstacles (Spikes, PowerUps)
         this.obstacles.forEach(obs => {
             if (
                 p.x + hitboxPadding < obs.x + obs.width - hitboxPadding &&
@@ -209,9 +267,44 @@ export class Game {
                 p.y + hitboxPadding < obs.y + obs.height - hitboxPadding &&
                 p.y + p.size - hitboxPadding > obs.y + hitboxPadding
             ) {
-                this.gameOver();
+                // Determine type
+                if (obs instanceof PowerUp) {
+                    this.activatePowerUp(obs);
+                    obs.markedForDeletion = true;
+                } else if (obs instanceof Spike) {
+                    if (p.hasShield) {
+                        p.hasShield = false; // Consume shield
+                        obs.markedForDeletion = true;
+                        this.spawnParticles(obs.x, obs.y, '#00f3ff', 20); // Shield break effect
+                        if (this.audio) this.audio.playTone(600, 'sine', 0.1); // Shield sound
+                    } else {
+                        this.gameOver();
+                    }
+                } else {
+                    // Other obstacles?
+                    this.gameOver();
+                }
             }
         });
+
+        // Check if player fell off world
+        if (p.y > this.height) {
+            this.gameOver();
+        }
+    }
+
+    activatePowerUp(powerup) {
+        if (this.audio) this.audio.playTone(800, 'square', 0.1, 10);
+        this.spawnParticles(powerup.x, powerup.y, powerup.color, 20);
+
+        if (powerup.type === 'shield') {
+            this.player.hasShield = true;
+        } else if (powerup.type === 'jump') {
+            this.player.maxJumps = 2; // Enable double jump
+            this.player.doubleJumpTimer = 10000; // 10s
+        } else if (powerup.type === 'slowmo') {
+            this.slowMoTimer = 5000; // 5s
+        }
     }
 
     updateScore(val) {
@@ -228,14 +321,15 @@ export class Game {
 
     gameOver() {
         this.isRunning = false;
-
-        if (this.audio) this.audio.playDie();
+        if (this.audio) {
+            this.audio.playDie();
+            this.audio.stopMusic();
+        }
         this.spawnParticles(this.player.x + this.player.size / 2, this.player.y + this.player.size / 2, this.player.color, 50);
 
         const finalScore = Math.floor(this.score);
         document.getElementById('final-score-value').innerText = finalScore;
 
-        // High Score
         let highScore = this.updateHighScore();
         if (finalScore > highScore) {
             highScore = finalScore;
@@ -252,20 +346,13 @@ export class Game {
     }
 
     draw() {
-        // Clear & Background
+        // Clear
         this.ctx.fillStyle = '#111';
         this.ctx.fillRect(0, 0, this.width, this.height);
 
-        // Floor
-        this.ctx.strokeStyle = '#fff';
-        this.ctx.lineWidth = 2;
-        this.ctx.beginPath();
-        this.ctx.moveTo(0, this.height - 50);
-        this.ctx.lineTo(this.width, this.height - 50);
-        this.ctx.stroke();
-
+        this.platforms.forEach(p => p.draw(this.ctx));
+        this.obstacles.forEach(o => o.draw(this.ctx));
         this.player.draw(this.ctx);
-        this.obstacles.forEach(obs => obs.draw(this.ctx));
         this.particles.forEach(p => p.draw(this.ctx));
     }
 }
