@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JumpIt</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+
+        <!-- UI Overlay -->
+        <div id="ui-layer">
+
+            <!-- HUD -->
+            <div id="hud" class="hidden">
+                <div id="score-container">SCORE: <span id="score-value">0</span></div>
+                <div id="hud-high-score">MEILLEUR: <span id="hud-high-score-value">0</span></div>
+            </div>
+
+            <!-- Pause Screen -->
+            <div id="pause-screen" class="screen hidden">
+                <h2 class="title">PAUSE</h2>
+                <button id="resume-btn" class="neon-btn">REPRENDRE</button>
+            </div>
+
+            <!-- Main Menu -->
+            <div id="main-menu" class="screen active">
+                <h1 class="logo">JUMP<span class="highlight">IT</span></h1>
+                <p class="subtitle">APPUYEZ POUR SAUTER • ÉVITEZ LES OBSTACLES</p>
+                <button id="start-btn" class="neon-btn">JOUER</button>
+            </div>
+
+            <!-- Game Over -->
+            <div id="game-over" class="screen hidden">
+                <h2 class="title">PERDU</h2>
+                <div class="final-score">SCORE: <span id="final-score-value">0</span></div>
+                <div class="high-score">MEILLEUR: <span id="high-score-value">0</span></div>
+                <button id="restart-btn" class="neon-btn">REJOUER</button>
+            </div>
+
+        </div>
+
+        <footer id="game-footer">
+            2026 © Tous droits réservés | mGames | Vidéo Officielle du Jeu
+        </footer>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+
+</html>
